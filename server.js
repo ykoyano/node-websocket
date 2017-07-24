@@ -1,43 +1,39 @@
-'use strict';
-
-const express = require('express');
-const WebSocket = require('ws')
-const SocketServer = WebSocket.Server;
-const path = require('path');
+var express = require('express');
+var app = express();
+var http = require('http').Server(app);
+var io = require('socket.io')(http);
 
 const PORT = process.env.PORT || 3000;
-const INDEX = path.join(__dirname, 'index.html');
 
-const server = express()
-  .use((req, res) => res.sendFile(INDEX) )
-  .use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Credentials", true);
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  res.header("Access-Control-Allow-Headers", 'Origin,X-Requested-With,Content-Type,Accept,content-type,application/json');
-  next();
-}).listen(PORT, () => console.log(`Listening on ${ PORT }`));
+// index.htmlから読み込まれている静的ファイルを送れるようにしておく
+app.use(express.static('src/'));
 
-const wss = new SocketServer({ server });
+// GETされたらindex.htmlを送信する
+app.get('/', function(req, res){
+    res.sendfile('src/index.html');
+});
 
-// Broadcast to all.
-wss.broadcast = function broadcast(data) {
-    wss.clients.forEach(function each(client) {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(data);
-        }
+// クライアントからの接続を待つ
+io.on('connection', function(socket){
+    console.log('a user connected');
+    socket.on('disconnect', function(){
+        console.log('user disconnected');
     });
-};
-
-wss.on('connection', (ws) => {
-    console.log('Client connected');
-    ws.on('close', () => console.log('Client disconnected'));
-    ws.on('message', function incoming(data) {
-        // Broadcast to everyone else.
-        wss.clients.forEach(function each(client) {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(data);
-            }
-        });
+    // クライアントからメッセージを受け取ったら投げ返す
+    socket.on('bingo', function(msg){
+        // 同じクライアントに送信する場合は socket.emit を io.emit に変える
+        console.log(msg);
+        io.emit('bingo', msg);
     });
+    socket.on('reset', function(msg){
+        io.emit('reset', msg);
+    });
+    socket.on('null', function(msg){
+        io.emit('null', msg);
+    });
+
+});
+
+http.listen(PORT, function(){
+    console.log('listening on *:3000');
 });
